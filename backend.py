@@ -17,6 +17,7 @@ latest_sensor_data = {}
 class SensorData(BaseModel):
     heart_rate: float
     noise_level: float
+    imu_state: str = "ACT_STILL"
 
 @app.post("/sensor-data")
 def receive_sensor_data(data: SensorData):
@@ -24,6 +25,7 @@ def receive_sensor_data(data: SensorData):
     latest_sensor_data = {
         "heart_rate": data.heart_rate,
         "noise_level": data.noise_level,
+        "imu_state": data.imu_state,
         "timestamp": datetime.now().isoformat()
     }
     print("Received:", latest_sensor_data)
