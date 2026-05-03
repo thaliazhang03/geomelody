@@ -10,6 +10,7 @@ const SCOPES = [
   'user-top-read',  
   'playlist-read-collaborative',
   'streaming',
+  'user-modify-playback-state',
   'user-read-email',
 ].join(' ')
 
