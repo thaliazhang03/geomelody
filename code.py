@@ -17,6 +17,7 @@ import microcontroller
 # --- WiFi setup ---
 print("Connecting to WiFi...")
 wifi.radio.connect(secrets["ssid"], secrets["password"])
+# wifi.radio.connect("RedRover")
 print("Connected! IP:", wifi.radio.ipv4_address)
 pool = socketpool.SocketPool(wifi.radio)
 requests = adafruit_requests.Session(pool, ssl.create_default_context())
@@ -36,13 +37,15 @@ rolling = []
 smoother = []
 window_ac = []
 beat_times = []
+bpm_readings = []
+imu_readings = []
 bpm = 0
 last_was_low = False
 
 imu_samples = []
 last_db = 30.0
 last_imu = "ACT_STILL"
-REPORT_EVERY = 5  # seconds
+REPORT_EVERY = 180  # seconds
 last_report = time.monotonic()
 
 def get_imu_state(samples):
@@ -61,9 +64,9 @@ def get_imu_state(samples):
         variance = sum((v - mean) ** 2 for v in vals) / len(vals)
         if variance > max_var:
             max_var = variance
-    if max_jerk > 1.64:
+    if max_var > 1:
         return "ACT_WALKING"
-    elif max_var > 0.2:
+    elif max_var > 0.1:
         return "ACT_WORKING"
     else:
         return "ACT_STILL"
@@ -144,9 +147,11 @@ while True:
                                 pass  # outlier, skip
                             else:
                                 bpm = new_bpm
+                                bpm_readings.append(bpm)
                                 # print(f"BEAT, BPM: {bpm:.1f}")
                         else:
                             bpm = new_bpm
+                            bpm_readings.append(bpm)
                             # print(f"BEAT, BPM: {bpm:.1f}")
             elif ac > ac_min + ac_range * 0.5:
                 last_was_low = False
@@ -166,13 +171,20 @@ while True:
 
         last_db = get_noise_db()
         last_imu = get_imu_state(imu_samples)
+        imu_readings.append(last_imu)
 
-        print(f"BPM: {bpm:.1f}, Noise: {last_db:.1f} dB, Motion: {last_imu}")
+        # mode of imu states this period
+        mode_imu = max(set(imu_readings), key=imu_readings.count)
+
+        # average bpm this period
+        avg_bpm = sum(bpm_readings) / len(bpm_readings) if bpm_readings else bpm
+
+        print(f"BPM: {avg_bpm:.1f}, Noise: {last_db:.1f} dB, Motion: {mode_imu}")
 
         payload = {
-            "heart_rate": bpm,
+            "heart_rate": avg_bpm,
             "noise_level": last_db,
-            "imu_state": last_imu
+            "imu_state": mode_imu
         }
         try:
             response = requests.post(BACKEND_URL, json=payload)
@@ -180,3 +192,7 @@ while True:
             response.close()
         except Exception as e:
             print("Post failed:", e)
+
+        clear period accumulators
+        bpm_readings = []
+        imu_readings = []
